@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  php-app:
+    build: .
+    container_name: php-benchmark-app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./app:/var/www/html
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html
+
+  benchmark:
+    image: alpine:latest
+    container_name: php-benchmark-tools
+    depends_on:
+      - php-app
+    volumes:
+      - ./benchmark:/benchmark
+      - ./results:/results
+    command: |
+      sh -c "
+        apk add --no-cache apache2-utils curl bash &&
+        tail -f /dev/null
+      "
