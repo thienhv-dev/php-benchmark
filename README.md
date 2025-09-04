@@ -13,7 +13,11 @@ php-benchmark/
 │   ├── api.php                # Các endpoint API
 │   └── config.php             # Cấu hình PHP
 ├── benchmark/
-│   └── run-test.sh            # Script tự động benchmark
+│   └── run-test.sh            # Script tự động benchmark (Apache Bench)
+├── gatling/                   # Gatling load testing
+│   ├── user-files/
+│   │   └── simulations/       # Gatling simulation files
+│   └── scripts/               # Gatling helper scripts
 ├── results/                   # Kết quả benchmark (tự sinh ra)
 └── README.md
 ```
@@ -34,19 +38,143 @@ php-benchmark/
    ```sh
    docker-compose up --build -d
    ```
-   Lệnh này sẽ build image và khởi động 2 service: `php-app` (chạy app PHP) và `benchmark` (chạy script benchmark).
+   Lệnh này sẽ build image và khởi động 3 services: `php-app` (chạy app PHP), `benchmark` (Apache Bench tools), và `gatling` (Gatling load testing).
 3. **Truy cập ứng dụng PHP:**
    - Mở trình duyệt và vào địa chỉ [http://localhost:8080](http://localhost:8080)
 4. **Chạy benchmark:**
-   - Thực thi script benchmark trong container:
-     ```sh
-     docker exec php-benchmark-tools bash /benchmark/run-test.sh
-     ```
+   
+   **Apache Bench (AB):**
+   ```sh
+   docker exec php-benchmark-tools bash /benchmark/run-test.sh
+   ```
+   
+   **Gatling Load Testing:**
+   ```sh
+   # Cài đặt Demo Gatling (nhanh, cho demo)
+   bash gatling/scripts/setup-gatling-simple.sh
+   
+   # Hoặc cài đặt Gatling đầy đủ (chậm hơn, production)
+   bash gatling/scripts/setup-gatling-local.sh
+   
+   # Chạy test đơn lẻ
+   bash gatling/scripts/run-single-test.sh SingleEndpointSimulation fast 100 60
+   bash gatling/scripts/run-single-test.sh PhpBenchmarkSimulation
+   
+   # Tạo báo cáo HTML sau khi chạy test
+   bash create-gatling-report.sh PhpBenchmarkSimulation
+   bash create-gatling-report.sh SingleEndpointSimulation medium
+   ```
+   
    - Kết quả sẽ lưu ở thư mục `results/`
+
+## Gatling Load Testing
+
+### Các loại test Gatling
+
+**1. Comprehensive Load Test (`PhpBenchmarkSimulation`)**
+- Test tổng hợp tất cả endpoints với mixed workload
+- Mô phỏng tình huống sử dụng thực tế
+- Thời gian: ~5-8 phút
+
+**2. Single Endpoint Test (`SingleEndpointSimulation`)**
+- Test riêng lẻ từng endpoint
+- Có thể tuỳ chỉnh users, duration
+- Phù hợp để đánh giá hiệu năng từng API
+
+**3. Stress Test (`StressTestSimulation`)**
+- Test khả năng chịu tải cao
+- Tăng dần số lượng users để tìm breaking point
+- Thời gian: ~10-15 phút
+
+### Cài đặt Gatling
+
+**Demo Mode (Khuyến nghị cho thử nghiệm):**
+- Nhanh, không cần download file lớn
+- Hiển thị kết quả mô phỏng realistic
+- Phù hợp cho demo và hiểu workflow
+
+```sh
+bash gatling/scripts/setup-gatling-simple.sh
+```
+
+**Production Mode (Cho testing thực tế):**
+- Download Gatling đầy đủ (~74MB)
+- Chạy test thực tế với PHP endpoints
+- Tạo báo cáo HTML chi tiết
+
+```sh
+bash gatling/scripts/setup-gatling-local.sh
+```
+
+### Lệnh Gatling thông dụng
+
+```sh
+# Chạy comprehensive test
+bash gatling/scripts/run-single-test.sh PhpBenchmarkSimulation
+
+# Test endpoint cụ thể với 200 users trong 120 giây
+bash gatling/scripts/run-single-test.sh SingleEndpointSimulation fast 200 120
+
+# Chạy stress test
+bash gatling/scripts/run-single-test.sh StressTestSimulation
+
+# Chạy trực tiếp trong container
+docker exec php-benchmark-gatling /opt/gatling/bin/gatling.sh -s PhpBenchmarkSimulation
+```
+
+### Tạo và đọc báo cáo HTML
+
+**Tạo báo cáo:**
+```sh
+# Tạo báo cáo cho test vừa chạy
+bash create-gatling-report.sh PhpBenchmarkSimulation
+
+# Tạo báo cáo cho endpoint cụ thể  
+bash create-gatling-report.sh SingleEndpointSimulation medium
+```
+
+**Mở báo cáo:**
+```sh
+# Mở báo cáo mới nhất
+open results/latest-gatling-report.html
+
+# Hoặc mở báo cáo cụ thể
+open results/gatling-phpbenchmarksimulation-*.html
+```
+
+**Nội dung báo cáo:**
+- **📊 Response Time Statistics**: Percentiles (50th, 95th, 99th), Min/Max
+- **🎯 Endpoint Performance**: RPS, Success rate, Mean time từng endpoint
+- **📈 Charts**: Biểu đồ thời gian phản hồi và load pattern
+- **⚙️ Test Configuration**: Thông tin cấu hình test
+
+### So sánh Apache Bench vs Gatling
+
+| Feature | Apache Bench (AB) | Gatling |
+|---------|-------------------|---------|
+| **Đơn giản** | ✅ Rất đơn giản | ⚠️ Cần hiểu Scala |
+| **Kết quả** | Text reports | 📊 Rich HTML reports |
+| **Scenarios** | Single endpoint | 🎯 Complex user journeys |
+| **Real-time monitoring** | ❌ Không có | ✅ Có dashboard |
+| **Load patterns** | Fixed load | 🔄 Ramp up/down, spikes |
+| **Assertions** | ❌ Không có | ✅ Built-in assertions |
+| **CI/CD** | ✅ Dễ tích hợp | ✅ Dễ tích hợp |
+
+**Khi nào dùng Apache Bench:**
+- Test nhanh, đơn giản
+- Baseline performance check
+- CI/CD pipeline cơ bản
+
+**Khi nào dùng Gatling:**
+- Load testing chuyên nghiệp
+- Performance regression testing
+- Cần reports đẹp cho stakeholders
+- Test scenarios phức tạp
 
 ## Tuỳ biến
 - Sửa code trong thư mục `app/` nếu muốn thay đổi logic ứng dụng PHP.
-- Sửa hoặc thêm script trong `benchmark/` nếu muốn thay đổi cách benchmark.
+- Sửa hoặc thêm script trong `benchmark/` nếu muốn thay đổi cách benchmark Apache Bench.
+- Sửa simulation files trong `gatling/user-files/simulations/` để tuỳ chỉnh Gatling tests.
 
 ## Kết quả benchmark
 - Kết quả sẽ được lưu ở thư mục `results/` dưới dạng file `.csv`, `.html`, `.txt`, `.dat`.
@@ -62,8 +190,12 @@ sleep 30
 # Kiểm tra health endpoint
 curl http://localhost:8080/health
 
-# Chạy benchmark
+# Chạy Apache Bench
 docker exec php-benchmark-tools bash /benchmark/run-test.sh
+
+# Hoặc chạy Gatling Demo (nhanh)
+bash gatling/scripts/setup-gatling-simple.sh
+bash gatling/scripts/run-single-test.sh PhpBenchmarkSimulation
 
 # Xem kết quả
 ls results/

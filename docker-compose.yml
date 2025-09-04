@@ -24,3 +24,20 @@ services:
         apk add --no-cache apache2-utils curl bash &&
         tail -f /dev/null
       "
+
+  gatling:
+    image: openjdk:11-jre-slim
+    container_name: php-benchmark-gatling
+    depends_on:
+      - php-app
+    volumes:
+      - ./gatling/user-files:/opt/gatling/user-files
+      - ./results:/opt/gatling/results
+    working_dir: /opt/gatling
+    command: |
+      sh -c "
+        apt-get update &&
+        apt-get install -y curl bash wget unzip &&
+        echo 'Container ready. Use setup-gatling.sh to install Gatling.' &&
+        tail -f /dev/null
+      "
